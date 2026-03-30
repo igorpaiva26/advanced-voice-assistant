@@ -6,16 +6,19 @@ Assistente web com chat, reconhecimento de voz, síntese de fala e compartilhame
 
 - **Frontend**: React + TypeScript + Vite (porta 5173)
 - **Backend**: Node.js + Express + TypeScript (porta 3001)
-- **STT**: Groq Speech-to-Text (via backend)
-- **Chat**: Groq Chat Completions (via backend)
-- **TTS**: `window.speechSynthesis` do navegador (pt-BR, sem custo)
+- **STT**: Groq Whisper (Speech-to-Text)
+- **Chat**: Google Gemini 2.5 Flash (com Function Calling / Tools)
+- **Vision**: Google Gemini 2.5 Flash (análise de tela)
+- **TTS**: Edge TTS (pt-BR-FranciscaNeural)
 
 ---
 
 ## Pré-requisitos
 
 - Node.js 18+
+- Python 3.x (para Edge TTS)
 - Uma chave de API da Groq: https://console.groq.com
+- Uma chave de API do Google Gemini: https://aistudio.google.com/apikey
 
 ---
 
@@ -29,16 +32,22 @@ cp .env.example .env
 Edite o arquivo `.env` e preencha:
 
 ```env
-GROQ_API_KEY=sua_chave_real_aqui
-GROQ_CHAT_MODEL=llama3-8b-8192
-GROQ_STT_MODEL=whisper-large-v3
+# Groq (apenas para STT - Whisper)
+GROQ_API_KEY=sua_chave_groq_aqui
+GROQ_STT_MODEL=whisper-large-v3-turbo
+
+# Google Gemini (LLM principal - Chat, Vision, Tools)
+GEMINI_API_KEY=sua_chave_gemini_aqui
+GEMINI_MODEL=gemini-2.0-flash-exp
 ```
 
-> Modelos disponíveis na Groq: https://console.groq.com/docs/models
+> **Groq (STT)**: https://console.groq.com/docs/models
+> - Recomendado: `whisper-large-v3-turbo` (mais rápido)
 >
-> Para chat recomendamos: `llama3-8b-8192` ou `llama-3.1-8b-instant`
+> **Gemini (Chat/Vision)**: https://ai.google.dev/gemini-api/docs/models
+> - Recomendado: `gemini-2.0-flash-exp` ou `gemini-2.5-flash`
 >
-> Para STT recomendamos: `whisper-large-v3` ou `distil-whisper-large-v3-en`
+> **Edge TTS**: Instale com `pip install edge-tts`
 
 ---
 
@@ -90,11 +99,13 @@ O frontend estará disponível em: http://localhost:5173
 
 | Erro | Solução |
 |------|---------|
-| `GROQ_API_KEY não definida` | Copie `.env.example` para `.env` e preencha a chave |
+| `GROQ_API_KEY não definida` | Copie `.env.example` para `.env` e preencha a chave Groq |
+| `GEMINI_API_KEY não definida` | Adicione sua chave do Google Gemini no `.env` |
 | `Permissão de microfone negada` | Permita o acesso ao microfone nas configurações do navegador |
 | `MediaRecorder não suportado` | Use Chrome, Edge ou Firefox atualizado |
 | `Groq retornou 401` | Verifique se a `GROQ_API_KEY` está correta |
-| `Groq retornou 429` | Limite de requisições atingido, aguarde alguns segundos |
+| `Gemini retornou 401` | Verifique se a `GEMINI_API_KEY` está correta |
+| `Edge TTS não encontrado` | Instale com `pip install edge-tts` |
 | CORS bloqueado | Confirme que `CORS_ORIGIN=http://localhost:5173` no `.env` |
 
 ---
@@ -108,11 +119,21 @@ ai-screen-assistant/
     .env.example     # Copie para .env e preencha
 ```
 
-## Trocar de Provider (ex: OpenAI)
+## Funcionalidades
 
-Edite apenas `backend/src/services/groq.ts` e as variáveis de ambiente:
-- `GROQ_BASE_URL` → URL base do novo provider
-- `GROQ_API_KEY` → chave do novo provider
-- `GROQ_CHAT_MODEL` / `GROQ_STT_MODEL` → modelos do novo provider
+- ✅ **Chat por voz** com transcrição automática (Groq Whisper)
+- ✅ **Respostas inteligentes** com IA (Google Gemini)
+- ✅ **Análise de tela** em tempo real (Gemini Vision)
+- ✅ **Síntese de voz** natural (Edge TTS)
+- ✅ **Function Calling** - Controle do Windows por voz (abrir apps, volume, etc)
+- ✅ **Comandos de voz** para ativar/desativar compartilhamento de tela
+- ✅ **Detecção de silêncio** inteligente
+- ✅ **Filtro de alucinações** do Whisper
 
-As rotas e o frontend não precisam mudar.
+## Arquitetura
+
+```
+Usuário fala → Groq Whisper (STT) → Gemini (LLM + Tools) → Edge TTS → Áudio
+                                           ↓
+                                    Gemini Vision (se tela compartilhada)
+```
