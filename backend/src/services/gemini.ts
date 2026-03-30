@@ -12,6 +12,7 @@ import SYSTEM_PROMPT from '../prompt';
 import { AGENT_PROFILES } from '../agents';
 import { TOOLS } from '../tools/definitions';
 import { executeTool } from '../tools/executor';
+import { geminiRateLimiter } from '../utils/rateLimiter';
 
 const env = loadEnv();
 
@@ -67,6 +68,9 @@ async function callGemini(contents: object[], agentId?: string, customPrompt?: s
     generationConfig: { maxOutputTokens: 2048, temperature: 0.7 },
   };
 
+  // Rate limiting
+  await geminiRateLimiter.waitIfNeeded();
+
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
     {
@@ -110,6 +114,9 @@ async function callGeminiWithTools(
     tool_config: { function_calling_config: { mode: 'AUTO' } },
     generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
   };
+
+  // Rate limiting
+  await geminiRateLimiter.waitIfNeeded();
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
@@ -205,6 +212,9 @@ export async function generateChatReply(
         contents: contentsWithResult,
         generationConfig: { maxOutputTokens: 256, temperature: 0.7 },
       };
+
+      // Rate limiting
+      await geminiRateLimiter.waitIfNeeded();
 
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,

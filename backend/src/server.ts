@@ -8,6 +8,7 @@ import chatRouter from './routes/chat';
 import transcribeRouter from './routes/transcribe';
 import ttsRouter from './routes/tts';
 import visionRouter from './routes/vision';
+import statsRouter from './routes/stats';
 
 const env = loadEnv();
 const app = express();
@@ -22,6 +23,7 @@ app.use('/api/chat', chatRouter);
 app.use('/api/transcribe', transcribeRouter);
 app.use('/api/tts', ttsRouter);
 app.use('/api/vision', visionRouter);
+app.use('/api/stats', statsRouter);
 
 app.listen(env.PORT, () => {
   console.log(`\n✅ Backend rodando em http://localhost:${env.PORT}`);

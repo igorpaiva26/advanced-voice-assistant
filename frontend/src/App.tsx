@@ -9,6 +9,7 @@ import { ChatInput } from './components/ChatInput';
 import { Controls } from './components/Controls';
 import { StatusBar } from './components/StatusBar';
 import { AgentSelector, AgentType } from './components/AgentSelector';
+import { RateLimitMonitor } from './components/RateLimitMonitor';
 
 function makeId() {
   return Math.random().toString(36).slice(2);
@@ -202,6 +203,8 @@ export default function App() {
 
   return (
     <div className="app">
+      <RateLimitMonitor />
+      
       <header className="app__header">
         <h1>🤖 AI Screen Assistant</h1>
         <span className="app__badge">
