@@ -25,7 +25,7 @@ export function RateLimitMonitor() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch('http://localhost:3001/api/stats');
+        const res = await fetch('http://192.168.0.2:3002/api/stats');
         const data = await res.json();
         setStats(data.stats);
       } catch (err) {

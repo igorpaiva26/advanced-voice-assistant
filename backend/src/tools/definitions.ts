@@ -439,4 +439,324 @@ export const TOOLS = [
       },
     },
   },
+
+  // ─── CONTROLE DE ABAS DO NAVEGADOR ────────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'close_specific_tab',
+      description: 'Fecha uma aba específica do navegador pelo nome/título. IMPORTANTE: Só funciona se o compartilhamento de tela estiver ativo para identificar qual aba fechar. Use quando o usuário pedir para fechar uma aba específica como "fecha a aba do YouTube", "fecha a aba do Gmail".',
+      parameters: {
+        type: 'object',
+        properties: {
+          tab_name: {
+            type: 'string',
+            description: 'Nome ou parte do título da aba a fechar. Ex: "YouTube", "Gmail", "Trello", "Billing".',
+          },
+        },
+        required: ['tab_name'],
+      },
+    },
+  },
+// ─── CLIPBOARD (Área de transferência) ────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'clipboard_copy',
+      description: 'Copia o texto selecionado para a área de transferência (Ctrl+C).',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'clipboard_paste',
+      description: 'Cola o conteúdo da área de transferência (Ctrl+V).',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'clipboard_set_text',
+      description: 'Define um texto específico na área de transferência sem precisar selecionar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: {
+            type: 'string',
+            description: 'Texto a ser copiado para o clipboard.',
+          },
+        },
+        required: ['text'],
+      },
+    },
+  },
+
+  // ─── MOUSE/CURSOR ──────────────────────────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'mouse_click',
+      description: 'Clica com o mouse em uma posição específica da tela ou na posição atual.',
+      parameters: {
+        type: 'object',
+        properties: {
+          x: {
+            type: 'number',
+            description: 'Coordenada X (horizontal) em pixels. Opcional.',
+          },
+          y: {
+            type: 'number',
+            description: 'Coordenada Y (vertical) em pixels. Opcional.',
+          },
+          button: {
+            type: 'string',
+            enum: ['left', 'right', 'double'],
+            description: 'Botão do mouse: "left" (esquerdo), "right" (direito), "double" (duplo clique).',
+          },
+        },
+        required: ['button'],
+      },
+    },
+  },
+
+  // ─── ARQUIVOS ──────────────────────────────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'file_create',
+      description: 'Cria um novo arquivo ou pasta no caminho especificado.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'Caminho completo do arquivo ou pasta. Ex: "C:\\Users\\user\\Desktop\\teste.txt"',
+          },
+          type: {
+            type: 'string',
+            enum: ['file', 'folder'],
+            description: '"file" para arquivo, "folder" para pasta.',
+          },
+          content: {
+            type: 'string',
+            description: 'Conteúdo inicial do arquivo (apenas para type=file). Opcional.',
+          },
+        },
+        required: ['path', 'type'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'file_delete',
+      description: 'Deleta um arquivo ou pasta.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'Caminho completo do arquivo ou pasta a deletar.',
+          },
+        },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'file_rename',
+      description: 'Renomeia um arquivo ou pasta.',
+      parameters: {
+        type: 'object',
+        properties: {
+          old_path: {
+            type: 'string',
+            description: 'Caminho atual do arquivo/pasta.',
+          },
+          new_name: {
+            type: 'string',
+            description: 'Novo nome (apenas o nome, não o caminho completo).',
+          },
+        },
+        required: ['old_path', 'new_name'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'file_search',
+      description: 'Busca arquivos por nome em um diretório.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filename: {
+            type: 'string',
+            description: 'Nome ou parte do nome do arquivo a buscar.',
+          },
+          directory: {
+            type: 'string',
+            description: 'Diretório onde buscar. Ex: "C:\\Users\\user\\Documents". Opcional, padrão é Desktop.',
+          },
+        },
+        required: ['filename'],
+      },
+    },
+  },
+
+  // ─── NAVEGADOR AVANÇADO ────────────────────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'browser_new_tab',
+      description: 'Abre uma nova aba no navegador (Ctrl+T).',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: {
+            type: 'string',
+            description: 'URL para abrir na nova aba. Opcional.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'browser_reload',
+      description: 'Recarrega a página atual do navegador (F5).',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'browser_back',
+      description: 'Volta para a página anterior no histórico do navegador.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'browser_forward',
+      description: 'Avança para a próxima página no histórico do navegador.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'browser_incognito',
+      description: 'Abre uma janela anônima/privada no navegador.',
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: [],
+      },
+    },
+  },
+
+  // ─── SISTEMA AVANÇADO ──────────────────────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'run_command',
+      description: 'Executa um comando no PowerShell ou CMD. Use com cuidado! Apenas para comandos seguros solicitados pelo usuário.',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: {
+            type: 'string',
+            description: 'Comando a executar. Ex: "ipconfig", "dir", "ping google.com"',
+          },
+          shell: {
+            type: 'string',
+            enum: ['powershell', 'cmd'],
+            description: 'Shell a usar: "powershell" ou "cmd". Padrão: powershell.',
+          },
+        },
+        required: ['command'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'kill_process',
+      description: 'Força o encerramento de um processo pelo nome.',
+      parameters: {
+        type: 'object',
+        properties: {
+          process_name: {
+            type: 'string',
+            description: 'Nome do processo. Ex: "chrome.exe", "notepad.exe"',
+          },
+        },
+        required: ['process_name'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'list_processes',
+      description: 'Lista os processos ativos no sistema.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filter: {
+            type: 'string',
+            description: 'Filtro opcional para buscar processos específicos.',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+
+  // ─── BUSCA ─────────────────────────────────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'windows_search',
+      description: 'Abre a busca do Windows e pesquisa por algo (Win+S).',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Termo de busca.',
+          },
+        },
+        required: ['query'],
+      },
+    },
+  },
 ];
