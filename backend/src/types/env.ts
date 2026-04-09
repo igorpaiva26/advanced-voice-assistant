@@ -13,7 +13,11 @@ export interface Env {
   GEMINI_MODEL: string;
 }
 
+let _env: Env | null = null;
+
 export function loadEnv(): Env {
+  if (_env) return _env;
+
   const required = ['GROQ_API_KEY', 'GROQ_CHAT_MODEL', 'GROQ_STT_MODEL', 'ELEVENLABS_API_KEY'];
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length > 0) {
@@ -22,7 +26,7 @@ export function loadEnv(): Env {
     process.exit(1);
   }
 
-  return {
+  _env = {
     PORT: parseInt(process.env.PORT ?? '3001', 10),
     GROQ_API_KEY: process.env.GROQ_API_KEY!,
     GROQ_BASE_URL: process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',
@@ -34,6 +38,8 @@ export function loadEnv(): Env {
     ELEVENLABS_VOICE_ID: process.env.ELEVENLABS_VOICE_ID ?? 'cgSgspJ2msm6clMCkdW9',
     ELEVENLABS_MODEL: process.env.ELEVENLABS_MODEL ?? 'eleven_multilingual_v2',
     GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? '',
-    GEMINI_MODEL: process.env.GEMINI_MODEL ?? 'gemini-2.0-flash',
+    GEMINI_MODEL: process.env.GEMINI_MODEL ?? 'gemini-2.5-flash',
   };
+
+  return _env;
 }

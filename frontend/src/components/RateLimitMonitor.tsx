@@ -5,12 +5,14 @@ interface Stats {
   ultimo_minuto: {
     requisicoes: number;
     limite: number;
+    restante: number;
     uso: string;
     status: string;
   };
   hoje: {
     requisicoes: number;
     limite: number;
+    restante: number;
     uso: string;
     status: string;
   };
@@ -23,21 +25,24 @@ export function RateLimitMonitor() {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
+    // Não faz polling quando minimizado — economiza requests
+    if (!visible) return;
+
     const fetchStats = async () => {
       try {
         const res = await fetch('http://localhost:3001/api/stats');
         const data = await res.json();
         setStats(data.stats);
       } catch (err) {
-        console.error('Erro ao buscar stats:', err);
+        // Silencioso — backend pode não estar rodando
       }
     };
 
     fetchStats();
-    const interval = setInterval(fetchStats, 3000); // Atualiza a cada 3s
+    const interval = setInterval(fetchStats, 10000); // 10s é suficiente
 
     return () => clearInterval(interval);
-  }, []);
+  }, [visible]);
 
   if (!stats) return null;
 
@@ -45,10 +50,10 @@ export function RateLimitMonitor() {
   const dayPercent = parseInt(stats.hoje.uso);
 
   const getColor = (percent: number) => {
-    if (percent >= 90) return '#ef4444'; // vermelho
-    if (percent >= 70) return '#f59e0b'; // laranja
-    if (percent >= 50) return '#eab308'; // amarelo
-    return '#10b981'; // verde
+    if (percent >= 90) return '#ef4444';
+    if (percent >= 70) return '#f59e0b';
+    if (percent >= 50) return '#eab308';
+    return '#10b981';
   };
 
   return (
@@ -69,9 +74,9 @@ export function RateLimitMonitor() {
           {/* Último minuto */}
           <div className="rate-monitor__item">
             <div className="rate-monitor__label">
-              <span>Último minuto</span>
+              <span>⏱️ Último minuto</span>
               <span className="rate-monitor__value">
-                {stats.ultimo_minuto.requisicoes}/{stats.ultimo_minuto.limite}
+                {stats.ultimo_minuto.requisicoes}/{stats.ultimo_minuto.limite} (restam {stats.ultimo_minuto.restante})
               </span>
             </div>
             <div className="rate-monitor__bar">
@@ -88,9 +93,9 @@ export function RateLimitMonitor() {
           {/* Hoje */}
           <div className="rate-monitor__item">
             <div className="rate-monitor__label">
-              <span>Hoje</span>
+              <span>📅 Hoje</span>
               <span className="rate-monitor__value">
-                {stats.hoje.requisicoes}/{stats.hoje.limite}
+                {stats.hoje.requisicoes}/{stats.hoje.limite} (restam {stats.hoje.restante})
               </span>
             </div>
             <div className="rate-monitor__bar">
@@ -108,13 +113,25 @@ export function RateLimitMonitor() {
           {/* Alerta se crítico */}
           {dayPercent >= 70 && (
             <div className="rate-monitor__alert">
-              {dayPercent >= 90 ? '🚨 CRÍTICO!' : '⚠️ Alto uso'}
+              {dayPercent >= 90 ? '🚨 CRÍTICO! Próximo do limite diário!' : '⚠️ Alto uso hoje'}
+            </div>
+          )}
+
+          {/* Bloqueado */}
+          {stats.bloqueado.includes('SIM') && (
+            <div className="rate-monitor__alert" style={{ backgroundColor: '#dc2626' }}>
+              🛑 BLOQUEADO - Limite diário atingido!
             </div>
           )}
 
           {/* Total */}
           <div className="rate-monitor__total">
-            Total: {stats.total_desde_inicio} requisições
+            📊 Total desde início: {stats.total_desde_inicio} requisições
+          </div>
+          
+          {/* Info Free Tier */}
+          <div className="rate-monitor__info">
+            🛡️ Free Tier: 15/min, 1500/dia (usando 13/min, 1200/dia com margem)
           </div>
         </div>
       )}

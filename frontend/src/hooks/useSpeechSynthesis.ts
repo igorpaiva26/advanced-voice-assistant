@@ -70,8 +70,10 @@ export function useSpeechSynthesis(options: UseSpeechSynthesisOptions = {}) {
     queueRef.current = [];
     isSpeakingRef.current = false;
     if (audioRef.current) {
+      const src = audioRef.current.src;
       audioRef.current.pause();
       audioRef.current = null;
+      if (src.startsWith('blob:')) URL.revokeObjectURL(src);
     }
     window.speechSynthesis?.cancel();
     optionsRef.current.onSpeakEnd?.();
@@ -82,8 +84,12 @@ export function useSpeechSynthesis(options: UseSpeechSynthesisOptions = {}) {
       if (!prev) {
         queueRef.current = [];
         isSpeakingRef.current = false;
-        audioRef.current?.pause();
-        audioRef.current = null;
+        if (audioRef.current) {
+          const src = audioRef.current.src;
+          audioRef.current.pause();
+          audioRef.current = null;
+          if (src.startsWith('blob:')) URL.revokeObjectURL(src);
+        }
         window.speechSynthesis?.cancel();
       }
       return !prev;

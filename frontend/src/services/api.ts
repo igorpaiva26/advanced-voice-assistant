@@ -5,6 +5,16 @@ export interface ApiChatMessage {
   content: string;
 }
 
+/** Converte Uint8Array para base64 sem stack overflow (chunked) */
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.slice(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
 export async function sendChatMessage(message: string, history: ApiChatMessage[], agentId?: string, customPrompt?: string): Promise<string> {
   const res = await fetch(`${BASE_URL}/chat`, {
     method: 'POST',
@@ -43,7 +53,7 @@ export async function sendAudioVisionMessage(
   customPrompt?: string
 ): Promise<{ transcription: string; reply: string }> {
   const arrayBuffer = await blob.arrayBuffer();
-  const audio = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  const audio = uint8ToBase64(new Uint8Array(arrayBuffer));
   const res = await fetch(`${BASE_URL}/audiovision`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -61,7 +71,7 @@ export async function sendAudioMessage(
   customPrompt?: string
 ): Promise<{ transcription: string; reply: string }> {
   const arrayBuffer = await blob.arrayBuffer();
-  const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+  const base64 = uint8ToBase64(new Uint8Array(arrayBuffer));
   const res = await fetch(`${BASE_URL}/audio`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

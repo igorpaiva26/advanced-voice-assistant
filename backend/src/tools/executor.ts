@@ -7,6 +7,38 @@
  */
 
 import { exec } from 'child_process';
+import path from 'path';
+
+// ─── SEGURANÇA ──────────────────────────────────────────────────────────────
+
+/** Bloqueia comandos perigosos no run_command */
+const BLOCKED_COMMAND_PATTERNS = [
+  /rm\s+-rf/i, /del\s+\/s/i, /format\s+[a-z]:/i,
+  /net\s+user/i, /reg\s+(add|delete)/i,
+  /Invoke-WebRequest/i, /Invoke-RestMethod/i,
+  /curl\s/i, /wget\s/i, /certutil.*-urlcache/i,
+  /powershell\s+-enc/i, /powershell\s+-e\s/i,
+  /iex\s*\(/i, /Invoke-Expression/i,
+  /Set-ExecutionPolicy/i,
+  /New-Service/i, /sc\s+(create|delete)/i,
+  /net\s+stop/i, /net\s+start/i,
+  /schtasks\s+\/create/i,
+];
+
+function isCommandBlocked(command: string): boolean {
+  return BLOCKED_COMMAND_PATTERNS.some(p => p.test(command));
+}
+
+/** Valida que um path de arquivo está dentro do perfil do usuário */
+function isSafePath(filePath: string): boolean {
+  const resolved = path.resolve(filePath);
+  const userProfile = process.env.USERPROFILE || 'C:\\Users';
+  // Deve estar dentro do perfil do usuário e não em AppData\\Local (que tem configs do sistema)
+  if (!resolved.toLowerCase().startsWith(userProfile.toLowerCase())) return false;
+  // Bloqueia caminhos críticos dentro do perfil
+  const blocked = ['AppData\\Local\\Microsoft', 'AppData\\Local\\Google', 'ntuser.dat'];
+  return !blocked.some(b => resolved.toLowerCase().includes(b.toLowerCase()));
+}
 
 // ─── MAPA DE APPS: nome amigável → comando para abrir ─────────────────────
 const APP_MAP: Record<string, string> = {
@@ -301,7 +333,9 @@ export async function executeTool(toolName: string, args: Record<string, any>): 
       if (!cmd) {
         return `Não sei como abrir "${args.app_name}". Os apps que conheço são: ${Object.keys(APP_MAP).filter((k, i, arr) => arr.indexOf(k) === i).slice(0, 30).join(', ')}...`;
       }
-      await runCmdShell(`start "" ${cmd}`);
+      // Se o comando já começa com 'start', não adicionar outro
+      const fullCmd = cmd.startsWith('start ') ? cmd : `start "" ${cmd}`;
+      await runCmdShell(fullCmd);
       return `Aplicativo "${args.app_name}" aberto com sucesso.`;
     }
 
@@ -446,12 +480,10 @@ export async function executeTool(toolName: string, args: Record<string, any>): 
 
     case 'toggle_bluetooth': {
       const enabled = args.enabled;
-      // Usa PowerShell para alternar Bluetooth via rádio
-      const psScript = enabled
-        ? `Start-Process ms-settings:bluetooth; "Configurações de Bluetooth abertas."`
-        : `Start-Process ms-settings:bluetooth; "Configurações de Bluetooth abertas."`;
-      await runCmd(psScript);
-      return `Abrindo configurações de Bluetooth para ${enabled ? 'ligar' : 'desligar'}.`;
+      // Nota: alternar Bluetooth via PowerShell requer drivers específicos.
+      // Abrimos a página de configurações e orientamos o usuário.
+      await runCmd(`Start-Process ms-settings:bluetooth`);
+      return `Abri as configurações de Bluetooth. ${enabled ? 'Ligue' : 'Desligue'} o Bluetooth na página que abriu.`;
     }
 
     // ─── PRODUTIVIDADE ────────────────────────────────────────────
@@ -594,16 +626,11 @@ export async function executeTool(toolName: string, args: Record<string, any>): 
     // ─── SISTEMA DE ARQUIVOS ──────────────────────────────────────
     case 'open_folder': {
       const folder = (args.folder || '').toLowerCase().trim();
-      const path = FOLDER_MAP[folder] || args.folder;
+      const folderPath = FOLDER_MAP[folder] || args.folder;
       
-      if (!path) return 'Nenhuma pasta especificada.';
+      if (!folderPath) return 'Nenhuma pasta especificada.';
       
-      // Para pastas shell: usamos start direto
-      if (path.startsWith('shell:')) {
-        await runCmdShell(`start "" "${path}"`);
-      } else {
-        await runCmdShell(`start "" "${path}"`);
-      }
+      await runCmdShell(`start "" "${folderPath}"`);
       return `Pasta aberta: ${args.folder}`;
     }
 
@@ -738,6 +765,160 @@ export async function executeTool(toolName: string, args: Record<string, any>): 
       }
       await runCmdShell(`start "" "${uri}"`);
       return `Configurações abertas: ${page}.`;
+    }
+
+    // ─── CLIPBOARD ────────────────────────────────────────────────
+    case 'clipboard_copy': {
+      await runCmd(`Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^c')`);
+      return 'Texto copiado para a área de transferência.';
+    }
+
+    case 'clipboard_paste': {
+      await runCmd(`Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`);
+      return 'Conteúdo colado da área de transferência.';
+    }
+
+    case 'clipboard_set_text': {
+      const clipText = (args.text || '').replace(/'/g, "''");
+      await runCmd(`Set-Clipboard -Value '${clipText}'`);
+      return 'Texto definido na área de transferência.';
+    }
+
+    // ─── NAVEGADOR AVANÇADO ──────────────────────────────────────
+    case 'browser_new_tab': {
+      if (args.url) {
+        await runCmdShell(`start "" "${args.url}"`);
+        return `Nova aba aberta com: ${args.url}`;
+      }
+      await runCmd(`Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^t')`);
+      return 'Nova aba aberta.';
+    }
+
+    case 'browser_reload': {
+      await runCmd(`Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{F5}')`);
+      return 'Página recarregada.';
+    }
+
+    case 'browser_back': {
+      await runCmd(`Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('%{LEFT}')`);
+      return 'Voltou para a página anterior.';
+    }
+
+    case 'browser_forward': {
+      await runCmd(`Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('%{RIGHT}')`);
+      return 'Avançou para a próxima página.';
+    }
+
+    case 'browser_incognito': {
+      await runCmd(`Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^+n')`);
+      return 'Janela anônima aberta.';
+    }
+
+    case 'browser_switch_tab': {
+      const direction = (args.direction || 'next').toLowerCase();
+      const times = Math.max(1, Math.min(20, Math.round(args.times ?? 1)));
+      const key = direction === 'previous' ? '^+{TAB}' : '^{TAB}';
+      const sendKeys = Array(times).fill(key).join('');
+      await runCmd(`Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${sendKeys}')`);
+      return `Navegou ${times}x para ${direction === 'previous' ? 'aba anterior' : 'próxima aba'}.`;
+    }
+
+    // ─── ARQUIVOS (com validação de segurança) ───────────────────
+    case 'file_create': {
+      const filePath = args.path || '';
+      if (!filePath) return 'Caminho não especificado.';
+      if (!isSafePath(filePath)) return 'Caminho bloqueado por segurança. Só é permitido criar arquivos dentro do perfil do usuário.';
+      const fileType = (args.type || 'file').toLowerCase();
+      if (fileType === 'folder') {
+        await runCmd(`New-Item -ItemType Directory -Path '${filePath}' -Force`);
+        return `Pasta criada: ${filePath}`;
+      }
+      const content = (args.content || '').replace(/'/g, "''");
+      await runCmd(`Set-Content -Path '${filePath}' -Value '${content}'`);
+      return `Arquivo criado: ${filePath}`;
+    }
+
+    case 'file_delete': {
+      const filePath = args.path || '';
+      if (!filePath) return 'Caminho não especificado.';
+      if (!isSafePath(filePath)) return 'Caminho bloqueado por segurança. Só é permitido deletar arquivos dentro do perfil do usuário.';
+      await runCmd(`Remove-Item -Path '${filePath}' -Recurse -Force`);
+      return `Deletado: ${filePath}`;
+    }
+
+    case 'file_rename': {
+      const oldPath = args.old_path || '';
+      const newName = args.new_name || '';
+      if (!oldPath || !newName) return 'Caminho e novo nome são obrigatórios.';
+      if (!isSafePath(oldPath)) return 'Caminho bloqueado por segurança.';
+      await runCmd(`Rename-Item -Path '${oldPath}' -NewName '${newName}'`);
+      return `Renomeado para: ${newName}`;
+    }
+
+    case 'file_search': {
+      const filename = args.filename || '';
+      const directory = args.directory || (process.env.USERPROFILE + '\\Desktop');
+      if (!filename) return 'Nome do arquivo não especificado.';
+      const result = await runCmd(`Get-ChildItem -Path '${directory}' -Recurse -Filter '*${filename}*' -ErrorAction SilentlyContinue | Select-Object -First 10 -ExpandProperty FullName`);
+      return result.trim() || 'Nenhum arquivo encontrado.';
+    }
+
+    // ─── SISTEMA (com validação de segurança) ────────────────────
+    case 'run_command': {
+      const command = (args.command || '').trim();
+      if (!command) return 'Nenhum comando especificado.';
+      if (isCommandBlocked(command)) {
+        console.warn(`[executor] ⛔ Comando bloqueado por segurança: ${command}`);
+        return 'Comando bloqueado por motivos de segurança.';
+      }
+      const shell = (args.shell || 'powershell').toLowerCase();
+      const result = shell === 'cmd' ? await runCmdShell(command) : await runCmd(command);
+      return result.trim() || 'Comando executado.';
+    }
+
+    case 'kill_process': {
+      const proc = (args.process_name || '').trim();
+      if (!proc) return 'Nome do processo não especificado.';
+      const result = await runCmdShell(`taskkill /IM ${proc} /F`);
+      return result.includes('SUCCESS') || result.includes('sucesso')
+        ? `Processo ${proc} encerrado.`
+        : `Tentei encerrar ${proc}, mas ele pode não estar em execução.`;
+    }
+
+    case 'list_processes': {
+      const filter = args.filter || '';
+      const psScript = filter
+        ? `Get-Process | Where-Object { $_.ProcessName -match '${filter}' } | Select-Object -First 15 -Property ProcessName,Id,CPU | Format-Table -AutoSize`
+        : `Get-Process | Sort-Object CPU -Descending | Select-Object -First 15 -Property ProcessName,Id,CPU | Format-Table -AutoSize`;
+      const result = await runCmd(psScript);
+      return result.trim() || 'Nenhum processo encontrado.';
+    }
+
+    case 'windows_search': {
+      const query = args.query || '';
+      if (!query) return 'Nenhum termo de busca especificado.';
+      await runCmd(`Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^{ESC}'); Start-Sleep -Milliseconds 500; [System.Windows.Forms.SendKeys]::SendWait('${query.replace(/'/g, "''")}')`);
+      return `Busca do Windows aberta com: ${query}`;
+    }
+
+    case 'mouse_click': {
+      const x = Math.round(args.x ?? 0);
+      const y = Math.round(args.y ?? 0);
+      const button = (args.button || 'left').toLowerCase();
+      const psScript = `
+        Add-Type -TypeDefinition '
+          using System; using System.Runtime.InteropServices;
+          public class Mouse {
+            [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+            [DllImport("user32.dll")] public static extern void mouse_event(uint dwFlags, int dx, int dy, uint dwData, int dwExtraInfo);
+          }
+        '
+        [Mouse]::SetCursorPos(${x}, ${y})
+        Start-Sleep -Milliseconds 100
+        ${button === 'right' ? '[Mouse]::mouse_event(0x0008, 0, 0, 0, 0); [Mouse]::mouse_event(0x0010, 0, 0, 0, 0)' : '[Mouse]::mouse_event(0x0002, 0, 0, 0, 0); [Mouse]::mouse_event(0x0004, 0, 0, 0, 0)'}
+      `;
+      await runCmd(psScript);
+      return `Clique ${button} em (${x}, ${y}).`;
     }
 
     // ─── DEFAULT ──────────────────────────────────────────────────

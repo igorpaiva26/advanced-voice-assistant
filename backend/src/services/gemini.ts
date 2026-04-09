@@ -2,38 +2,47 @@
  * Serviço centralizado para o Google Gemini.
  * Usado para: chat de texto COM TOOLS, análise de tela (visão) e áudio.
  * 
- * O Gemini agora é o LLM principal para TUDO (chat, tools, vision).
+ * O Gemini é o LLM principal para chat, tools e vision.
  * O Groq fica apenas para STT (Whisper).
  */
 
 import fetch from 'node-fetch';
 import { loadEnv } from '../types/env';
-import SYSTEM_PROMPT from '../prompt';
+import { ChatMessage } from '../types/chat';
 import { AGENT_PROFILES } from '../agents';
 import { TOOLS } from '../tools/definitions';
 import { executeTool } from '../tools/executor';
 import { geminiRateLimiter } from '../utils/rateLimiter';
 
+export type { ChatMessage };
+
 const env = loadEnv();
 
-export interface ChatMessage {
-  role: 'user' | 'assistant' | 'system' | 'tool';
-  content: string;
+// Limita histórico enviado ao LLM para economizar tokens/custos
+const MAX_HISTORY_MESSAGES = 20;
+
+// ─── UTILITÁRIOS ────────────────────────────────────────────────────────────
+
+/** Resolve o system prompt baseado no agentId */
+function resolvePrompt(agentId?: string, customPrompt?: string): string {
+  if (agentId === 'custom' && customPrompt?.trim()) {
+    return customPrompt;
+  }
+  return AGENT_PROFILES[agentId ?? 'default'] ?? AGENT_PROFILES['default'];
 }
 
-// ─── CONVERSÃO DE FORMATOS ──────────────────────────────────────────────────
-
-// Converte histórico do formato interno para o formato Gemini
+/** Converte histórico do formato interno para o formato Gemini */
 function toGeminiHistory(history: ChatMessage[]) {
   return history
     .filter((m) => m.role !== 'system')
+    .slice(-MAX_HISTORY_MESSAGES)
     .map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.content }],
     }));
 }
 
-// Converte tools do formato OpenAI para o formato Gemini function_declarations
+/** Converte tools para o formato Gemini function_declarations */
 function toGeminiFunctionDeclarations() {
   return TOOLS.map((tool) => ({
     name: tool.function.name,
@@ -42,33 +51,12 @@ function toGeminiFunctionDeclarations() {
   }));
 }
 
-// ─── CHAMADA GEMINI GENÉRICA (sem tools) ────────────────────────────────────
-
-async function callGemini(contents: object[], agentId?: string, customPrompt?: string): Promise<string> {
+/** Request genérico ao Gemini com rate limiting */
+async function fetchGemini(body: object): Promise<any> {
   if (!env.GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY não configurada. Adicione no backend/.env');
   }
 
-  let finalPrompt = SYSTEM_PROMPT;
-  if (agentId === 'custom' && customPrompt && customPrompt.trim() !== '') {
-    finalPrompt = customPrompt;
-  } else if (agentId && AGENT_PROFILES[agentId]) {
-    finalPrompt = AGENT_PROFILES[agentId];
-  }
-
-  const visionSystemNote = `\nREGRAS EXTRAS PARA ANÁLISE DE TELA (MUITO IMPORTANTE): 
-- Descreva a tela de forma extremamente objetiva e direta. Diga apenas o que viu e pronto.
-- Use no máximo 2 ou 3 frases. 
-- NUNCA use listas (1., 2.) ou marcadores (*). 
-- NUNCA use formatação Markdown como negritos (**) ou itálicos. Responda apenas em texto corrido e puro.`;
-
-  const body = {
-    system_instruction: { parts: [{ text: finalPrompt + visionSystemNote }] },
-    contents,
-    generationConfig: { maxOutputTokens: 2048, temperature: 0.7 },
-  };
-
-  // Rate limiting
   await geminiRateLimiter.waitIfNeeded();
 
   const res = await fetch(
@@ -86,7 +74,26 @@ async function callGemini(contents: object[], agentId?: string, customPrompt?: s
     throw new Error(`Gemini retornou ${res.status}: ${err}`);
   }
 
-  const data = (await res.json()) as any;
+  return res.json();
+}
+
+// ─── CHAMADA GEMINI GENÉRICA (sem tools) ────────────────────────────────────
+
+async function callGemini(contents: object[], agentId?: string, customPrompt?: string): Promise<string> {
+  const systemPrompt = resolvePrompt(agentId, customPrompt);
+
+  const visionSystemNote = `\nREGRAS EXTRAS PARA ANÁLISE DE TELA (MUITO IMPORTANTE): 
+- Descreva a tela de forma extremamente objetiva e direta. Diga apenas o que viu e pronto.
+- Use no máximo 2 ou 3 frases. 
+- NUNCA use listas (1., 2.) ou marcadores (*). 
+- NUNCA use formatação Markdown como negritos (**) ou itálicos. Responda apenas em texto corrido e puro.`;
+
+  const data = await fetchGemini({
+    system_instruction: { parts: [{ text: systemPrompt + visionSystemNote }] },
+    contents,
+    generationConfig: { maxOutputTokens: 2048, temperature: 0.7 },
+  });
+
   return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 }
 
@@ -96,44 +103,37 @@ async function callGeminiWithTools(
   contents: object[],
   systemPrompt: string
 ): Promise<{ text?: string; functionCall?: { name: string; args: Record<string, any> } }> {
-  if (!env.GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY não configurada.');
-  }
+  const toolSystemNote = `\nVocê é um ASSISTENTE DE AÇÃO. REGRAS ABSOLUTAS:
 
-  const toolSystemNote = `\nVocê tem ferramentas para controlar o computador do usuário. REGRAS CRÍTICAS:
-1. SÓ use uma ferramenta quando o usuário EXPLICITAMENTE pedir uma ação no computador (ex: "abre a calculadora", "aumenta o volume", "pesquisa X no Google").
-2. Se a frase for uma PERGUNTA, CONVERSA ou COMENTÁRIO casual, RESPONDA NORMALMENTE com texto.
-3. Na dúvida se é um comando ou conversa, RESPONDA com texto. Nunca assuma que é um comando.
-4. Após executar uma ferramenta, confirme brevemente o que foi feito.
-5. Para desligar/reiniciar, SEMPRE pergunte confirmação antes.`;
+1. SEMPRE que o usuário pedir para FAZER algo, você DEVE chamar uma ferramenta. NUNCA apenas responda com texto.
 
-  const body: any = {
+2. Exemplos que EXIGEM ferramenta:
+   - "feche a aba X" → DEVE usar browser_switch_tab + press_keys
+   - "clica no botão X" → DEVE usar mouse_click
+   - "abre calculadora" → DEVE usar open_application
+   - "aumenta o volume" → DEVE usar set_volume
+
+3. Se você apenas RESPONDER com texto ao invés de EXECUTAR, você FALHOU.
+
+4. Para fechar aba específica:
+   a) Conte quantas abas precisa pular (ex: "quarta aba" = pular 3 vezes)
+   b) Use browser_switch_tab com direction="next" e times=3
+   c) Use press_keys com keys="ctrl+w"
+
+5. NUNCA diga "fechei", "cliquei", "abri" se você não chamou uma ferramenta.
+
+6. Se não souber as coordenadas exatas, use as ferramentas de teclado (browser_switch_tab, press_keys).
+
+7. SEMPRE confirme a ação APÓS executar a ferramenta, não antes.`;
+
+  const data = await fetchGemini({
     system_instruction: { parts: [{ text: systemPrompt + toolSystemNote }] },
     contents,
     tools: [{ function_declarations: toGeminiFunctionDeclarations() }],
     tool_config: { function_calling_config: { mode: 'AUTO' } },
     generationConfig: { maxOutputTokens: 1024, temperature: 0.7 },
-  };
+  });
 
-  // Rate limiting
-  await geminiRateLimiter.waitIfNeeded();
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }
-  );
-
-  if (!res.ok) {
-    const err = await res.text();
-    console.error(`[gemini] Erro na chamada com tools: ${res.status}`);
-    throw new Error(`Gemini retornou ${res.status}: ${err}`);
-  }
-
-  const data = (await res.json()) as any;
   const parts = data?.candidates?.[0]?.content?.parts ?? [];
 
   // Verifica se tem function call
@@ -161,14 +161,9 @@ export async function generateChatReply(
   agentId?: string,
   customPrompt?: string
 ): Promise<string> {
-  let finalPrompt = SYSTEM_PROMPT;
-  if (agentId === 'custom' && customPrompt && customPrompt.trim() !== '') {
-    finalPrompt = customPrompt;
-  } else if (agentId && AGENT_PROFILES[agentId]) {
-    finalPrompt = AGENT_PROFILES[agentId];
-  }
+  const finalPrompt = resolvePrompt(agentId, customPrompt);
 
-  console.log(`[gemini] Chat+Tools: "${message.slice(0, 60)}" (histórico: ${history.length})`);
+  console.log(`[gemini] Chat+Tools: "${message.slice(0, 60)}" (histórico: ${Math.min(history.length, MAX_HISTORY_MESSAGES)})`);
 
   const contents = [
     ...toGeminiHistory(history),
@@ -206,32 +201,16 @@ export async function generateChatReply(
     ];
 
     try {
-      // Chamada sem tools para gerar resposta natural de confirmação
-      const body = {
+      const data = await fetchGemini({
         system_instruction: { parts: [{ text: finalPrompt + '\nConfirme brevemente o que foi feito. Seja natural e direto.' }] },
         contents: contentsWithResult,
         generationConfig: { maxOutputTokens: 256, temperature: 0.7 },
-      };
+      });
 
-      // Rate limiting
-      await geminiRateLimiter.waitIfNeeded();
-
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${env.GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        }
-      );
-
-      if (res.ok) {
-        const data = (await res.json()) as any;
-        const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (reply) {
-          console.log(`[gemini] Resposta após tool: "${reply.slice(0, 80)}"`);
-          return reply;
-        }
+      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (reply) {
+        console.log(`[gemini] Resposta após tool: "${reply.slice(0, 80)}"`);
+        return reply;
       }
     } catch (e) {
       console.warn('[gemini] Falha na segunda chamada, retornando resultado direto.');
@@ -249,7 +228,6 @@ export async function generateChatReply(
 
 // ─── AUDIO ──────────────────────────────────────────────────────────────────
 
-// Áudio direto: transcreve e responde em uma única chamada
 export async function generateAudioReply(
   audioBase64: string,
   mimeType: string,
@@ -284,7 +262,6 @@ export async function generateAudioReply(
 
 // ─── VISION ─────────────────────────────────────────────────────────────────
 
-// Chat com frame de tela + áudio
 export async function analyzeScreenWithAudio(
   audioBase64: string,
   audioMime: string,
@@ -314,7 +291,6 @@ export async function analyzeScreenWithAudio(
   return { transcription, reply };
 }
 
-// Chat com frame de tela (visão) — texto
 export async function analyzeScreen(
   imageBase64: string,
   mimeType: string,

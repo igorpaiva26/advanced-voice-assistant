@@ -439,4 +439,228 @@ export const TOOLS = [
       },
     },
   },
+
+  // ─── CLIPBOARD ─────────────────────────────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'clipboard_copy',
+      description: 'Copia o texto selecionado para a área de transferência (Ctrl+C).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'clipboard_paste',
+      description: 'Cola o conteúdo da área de transferência (Ctrl+V).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'clipboard_set_text',
+      description: 'Define um texto específico na área de transferência sem precisar selecionar.',
+      parameters: {
+        type: 'object',
+        properties: { text: { type: 'string', description: 'Texto a copiar' } },
+        required: ['text'],
+      },
+    },
+  },
+
+  // ─── NAVEGADOR AVANÇADO ────────────────────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'browser_new_tab',
+      description: 'Abre uma nova aba no navegador (Ctrl+T), opcionalmente com URL.',
+      parameters: {
+        type: 'object',
+        properties: { url: { type: 'string', description: 'URL opcional' } },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'browser_reload',
+      description: 'Recarrega a página atual (F5).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'browser_back',
+      description: 'Volta para a página anterior no histórico (Alt+Left).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'browser_forward',
+      description: 'Avança para a próxima página no histórico (Alt+Right).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'browser_incognito',
+      description: 'Abre uma janela anônima/privada (Ctrl+Shift+N).',
+      parameters: { type: 'object', properties: {}, required: [] },
+    },
+  },
+
+  // ─── ARQUIVOS ──────────────────────────────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'file_create',
+      description: 'Cria um arquivo ou pasta no caminho especificado.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Caminho completo' },
+          type: { type: 'string', enum: ['file', 'folder'], description: 'Tipo' },
+          content: { type: 'string', description: 'Conteúdo (apenas para arquivo)' },
+        },
+        required: ['path', 'type'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'file_delete',
+      description: 'Deleta um arquivo ou pasta.',
+      parameters: {
+        type: 'object',
+        properties: { path: { type: 'string', description: 'Caminho' } },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'file_rename',
+      description: 'Renomeia um arquivo ou pasta.',
+      parameters: {
+        type: 'object',
+        properties: {
+          old_path: { type: 'string', description: 'Caminho atual' },
+          new_name: { type: 'string', description: 'Novo nome' },
+        },
+        required: ['old_path', 'new_name'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'file_search',
+      description: 'Busca arquivos por nome em um diretório.',
+      parameters: {
+        type: 'object',
+        properties: {
+          filename: { type: 'string', description: 'Nome ou parte do nome' },
+          directory: { type: 'string', description: 'Diretório (padrão: Desktop)' },
+        },
+        required: ['filename'],
+      },
+    },
+  },
+
+  // ─── SISTEMA ───────────────────────────────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'run_command',
+      description: 'Executa um comando no PowerShell ou CMD.',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'Comando' },
+          shell: { type: 'string', enum: ['powershell', 'cmd'], description: 'Shell' },
+        },
+        required: ['command'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'kill_process',
+      description: 'Encerra um processo por nome (ex: chrome.exe).',
+      parameters: {
+        type: 'object',
+        properties: { process_name: { type: 'string', description: 'Nome do processo' } },
+        required: ['process_name'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'list_processes',
+      description: 'Lista processos ativos, opcionalmente filtrados.',
+      parameters: {
+        type: 'object',
+        properties: { filter: { type: 'string', description: 'Filtro opcional' } },
+        required: [],
+      },
+    },
+  },
+
+  // ─── BUSCA ─────────────────────────────────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'windows_search',
+      description: 'Abre a busca do Windows e digita o termo.',
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string', description: 'Termo de busca' } },
+        required: ['query'],
+      },
+    },
+  },
+
+  // ─── MOUSE E NAVEGAÇÃO ─────────────────────────────────────────
+  {
+    type: 'function' as const,
+    function: {
+      name: 'mouse_click',
+      description: 'Clica em uma coordenada específica da tela. Use quando precisar clicar em algo que você vê na imagem da tela.',
+      parameters: {
+        type: 'object',
+        properties: {
+          x: { type: 'number', description: 'Coordenada X (horizontal)' },
+          y: { type: 'number', description: 'Coordenada Y (vertical)' },
+          button: { type: 'string', enum: ['left', 'right', 'middle'], description: 'Botão (padrão: left)' },
+        },
+        required: ['x', 'y'],
+      },
+    },
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'browser_switch_tab',
+      description: 'Navega entre abas do navegador. Use para ir para próxima aba ou aba anterior.',
+      parameters: {
+        type: 'object',
+        properties: {
+          direction: { type: 'string', enum: ['next', 'previous'], description: 'next ou previous' },
+          times: { type: 'number', description: 'Quantas vezes (padrão: 1)' },
+        },
+        required: ['direction'],
+      },
+    },
+  },
 ];

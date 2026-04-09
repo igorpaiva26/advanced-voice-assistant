@@ -7,6 +7,9 @@ package-lock.json
 .env.local
 .env.*.local
 
+# Data persistence
+backend/data/
+
 # Build outputs
 dist/
 build/
