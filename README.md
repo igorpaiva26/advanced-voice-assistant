@@ -1,24 +1,26 @@
 # AI Screen Assistant
 
-Assistente web com chat, reconhecimento de voz, síntese de fala e compartilhamento de tela.
+Assistente de voz inteligente que **EXECUTA AÇÕES** no Windows por comando de voz.
 
 ## Visão Geral
 
 - **Frontend**: React + TypeScript + Vite (porta 5173)
 - **Backend**: Node.js + Express + TypeScript (porta 3001)
+- **Windows Agent**: Node.js (executa ferramentas no Windows)
 - **STT**: Groq Whisper (Speech-to-Text)
-- **Chat**: Google Gemini 2.5 Flash (com Function Calling / Tools)
+- **LLM**: Google Gemini 2.5 Flash (com Function Calling)
 - **Vision**: Google Gemini 2.5 Flash (análise de tela)
-- **TTS**: Edge TTS (pt-BR-FranciscaNeural)
+- **TTS**: ElevenLabs (voz natural em português)
 
 ---
 
 ## Pré-requisitos
 
 - Node.js 18+
-- Python 3.x (para Edge TTS)
-- Uma chave de API da Groq: https://console.groq.com
-- Uma chave de API do Google Gemini: https://aistudio.google.com/apikey
+- Windows 10/11
+- Chave API Groq: https://console.groq.com
+- Chave API Google Gemini: https://aistudio.google.com/apikey
+- Chave API ElevenLabs: https://elevenlabs.io
 
 ---
 
@@ -32,46 +34,51 @@ cp .env.example .env
 Edite o arquivo `.env` e preencha:
 
 ```env
-# Groq (apenas para STT - Whisper)
-GROQ_API_KEY=sua_chave_groq_aqui
+# Groq (STT - Whisper)
+GROQ_API_KEY=sua_chave_groq
 GROQ_STT_MODEL=whisper-large-v3-turbo
 
-# Google Gemini (LLM principal - Chat, Vision, Tools)
-GEMINI_API_KEY=sua_chave_gemini_aqui
-GEMINI_MODEL=gemini-2.0-flash-exp
-```
+# Google Gemini (LLM + Vision + Tools)
+GEMINI_API_KEY=sua_chave_gemini
+GEMINI_MODEL=gemini-2.5-flash
 
-> **Groq (STT)**: https://console.groq.com/docs/models
-> - Recomendado: `whisper-large-v3-turbo` (mais rápido)
->
-> **Gemini (Chat/Vision)**: https://ai.google.dev/gemini-api/docs/models
-> - Recomendado: `gemini-2.0-flash-exp` ou `gemini-2.5-flash`
->
-> **Edge TTS**: Instale com `pip install edge-tts`
+# ElevenLabs (TTS)
+ELEVENLABS_API_KEY=sua_chave_elevenlabs
+ELEVENLABS_VOICE_ID=cgSgspJ2msm6clMCkdW9
+```
 
 ---
 
 ## Instalação e Execução
 
-### Backend
+### Instalação
 
 ```bash
 cd backend
 npm install
-npm run dev
+
+cd ../frontend
+npm install
+
+cd ../windows-agent
+npm install
 ```
 
-O backend estará disponível em: http://localhost:3001
-
-### Frontend
+### Execução Rápida (Windows)
 
 ```bash
-cd frontend
-npm install
-npm run dev
+iniciar.bat
 ```
 
-O frontend estará disponível em: http://localhost:5173
+Isso inicia automaticamente:
+- Backend (http://localhost:3001)
+- Frontend (http://localhost:5173)
+- Abre o navegador
+
+Para parar:
+```bash
+parar.bat
+```
 
 ---
 
@@ -85,13 +92,20 @@ O frontend estará disponível em: http://localhost:5173
 
 ---
 
-## Fluxos de Uso
+## Como Usar
 
-**Texto**: Digite uma mensagem → clique Enviar → resposta aparece no chat e é lida em voz alta.
+**Comandos de Ação** (assistente EXECUTA):
+- "Abre a calculadora"
+- "Aumenta o volume para 50"
+- "Fecha a quarta aba"
+- "Clica nas coordenadas 500, 300"
+- "Vai para a próxima aba"
+- "Pesquisa sobre IA no Google"
 
-**Voz**: Clique "Gravar voz" → fale → clique "Parar gravação" → áudio é transcrito pelo backend → texto entra no chat → resposta é gerada e lida.
-
-**Tela**: Clique "Compartilhar tela" → selecione a janela → assistente confirma. Ao parar, assistente notifica.
+**Perguntas** (assistente RESPONDE):
+- "Que horas são?"
+- "Como está o tempo?"
+- "O que você pode fazer?"
 
 ---
 
@@ -99,14 +113,12 @@ O frontend estará disponível em: http://localhost:5173
 
 | Erro | Solução |
 |------|---------|
-| `GROQ_API_KEY não definida` | Copie `.env.example` para `.env` e preencha a chave Groq |
-| `GEMINI_API_KEY não definida` | Adicione sua chave do Google Gemini no `.env` |
-| `Permissão de microfone negada` | Permita o acesso ao microfone nas configurações do navegador |
-| `MediaRecorder não suportado` | Use Chrome, Edge ou Firefox atualizado |
-| `Groq retornou 401` | Verifique se a `GROQ_API_KEY` está correta |
-| `Gemini retornou 401` | Verifique se a `GEMINI_API_KEY` está correta |
-| `Edge TTS não encontrado` | Instale com `pip install edge-tts` |
-| CORS bloqueado | Confirme que `CORS_ORIGIN=http://localhost:5173` no `.env` |
+| `GROQ_API_KEY não definida` | Preencha a chave no `.env` |
+| `GEMINI_API_KEY não definida` | Preencha a chave no `.env` |
+| `ELEVENLABS_API_KEY não definida` | Preencha a chave no `.env` |
+| `Permissão de microfone negada` | Permita nas configurações do navegador |
+| `Rate limit atingido` | Aguarde ou reinicie no dia seguinte |
+| CORS bloqueado | Confirme `CORS_ORIGIN=http://localhost:5173` no `.env` |
 
 ---
 
@@ -114,26 +126,43 @@ O frontend estará disponível em: http://localhost:5173
 
 ```
 ai-screen-assistant/
+  backend/           # Express + TypeScript + Gemini
+    src/
+      agents/        # Perfis de agentes especializados
+      services/      # Gemini, Groq, ElevenLabs
+      tools/         # Definições e executor de ferramentas
+      utils/         # Rate limiter com persistência
+    data/            # Histórico do rate limiter
   frontend/          # React + Vite
-  backend/           # Express + TypeScript
-    .env.example     # Copie para .env e preencha
+  windows-agent/     # Executor de ferramentas Windows
+  iniciar.bat        # Inicia tudo
+  parar.bat          # Para tudo
 ```
 
 ## Funcionalidades
 
-- ✅ **Chat por voz** com transcrição automática (Groq Whisper)
-- ✅ **Respostas inteligentes** com IA (Google Gemini)
+- ✅ **Assistente de AÇÃO** - Executa comandos ao invés de ensinar
+- ✅ **40+ ferramentas** - Controle completo do Windows
 - ✅ **Análise de tela** em tempo real (Gemini Vision)
-- ✅ **Síntese de voz** natural (Edge TTS)
-- ✅ **Function Calling** - Controle do Windows por voz (abrir apps, volume, etc)
-- ✅ **Comandos de voz** para ativar/desativar compartilhamento de tela
-- ✅ **Detecção de silêncio** inteligente
-- ✅ **Filtro de alucinações** do Whisper
+- ✅ **Voz natural** (ElevenLabs TTS)
+- ✅ **Rate Limiter** com persistência (respeita free tier)
+- ✅ **Monitor de uso** da API em tempo real
+- ✅ **Novas tools**: mouse_click, browser_switch_tab
+- ✅ **Agentes especializados** (social, support, finance, law)
 
 ## Arquitetura
 
 ```
-Usuário fala → Groq Whisper (STT) → Gemini (LLM + Tools) → Edge TTS → Áudio
-                                           ↓
-                                    Gemini Vision (se tela compartilhada)
+Usuário fala → Groq Whisper (STT) → Gemini (LLM + Tools) → Windows Agent → Ação executada
+                                           ↓                      ↓
+                                    Gemini Vision          ElevenLabs TTS
 ```
+
+## Rate Limiting
+
+O sistema respeita os limites do free tier do Gemini:
+- 13 requisições/minuto (margem de segurança)
+- 1200 requisições/dia (margem de segurança)
+- Persistência em arquivo JSON (mantém histórico entre reinicializações)
+- Monitor visual no frontend
+- Endpoint de stats: http://localhost:3001/api/stats
